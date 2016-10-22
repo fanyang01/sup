@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
+	"net/url"
 	"os"
 	"os/user"
 	"strings"
@@ -20,6 +21,7 @@ type SSHClient struct {
 	sess         *ssh.Session
 	user         string
 	host         string
+	auth         []ssh.AuthMethod
 	remoteStdin  io.WriteCloser
 	remoteStdout io.Reader
 	remoteStderr io.Reader
@@ -42,36 +44,26 @@ func (e ErrConnect) Error() string {
 
 // parseHost parses and normalizes <user>@<host:port> from a given string.
 func (c *SSHClient) parseHost(host string) error {
-	c.host = host
-
-	// Remove extra "ssh://" schema
-	if len(c.host) > 6 && c.host[:6] == "ssh://" {
-		c.host = c.host[6:]
+	if !strings.HasPrefix(host, "ssh://") {
+		host = "ssh://" + host
 	}
-
-	if at := strings.Index(c.host, "@"); at != -1 {
-		c.user = c.host[:at]
-		c.host = c.host[at+1:]
+	u, err := url.Parse(host)
+	if err != nil {
+		return err
 	}
-
-	// Add default user, if not set
-	if c.user == "" {
-		u, err := user.Current()
+	if c.host = u.Host; !strings.ContainsRune(c.host, ':') {
+		c.host += ":22"
+	}
+	if c.user = u.User.Username(); c.user == "" {
+		usr, err := user.Current()
 		if err != nil {
 			return err
 		}
-		c.user = u.Username
+		c.user = usr.Username
 	}
-
-	if strings.Index(c.host, "/") != -1 {
-		return ErrConnect{c.user, c.host, "unexpected slash in the host URL"}
+	if pwd, _ := u.User.Password(); pwd != "" {
+		c.auth = append(c.auth, ssh.Password(pwd))
 	}
-
-	// Add default port, if not set
-	if strings.Index(c.host, ":") == -1 {
-		c.host += ":22"
-	}
-
 	return nil
 }
 
@@ -135,9 +127,7 @@ func (c *SSHClient) ConnectWith(host string, dialer SSHDialFunc) error {
 
 	config := &ssh.ClientConfig{
 		User: c.user,
-		Auth: []ssh.AuthMethod{
-			authMethod,
-		},
+		Auth: append(c.auth, authMethod),
 	}
 
 	c.conn, err = dialer("tcp", c.host, config)
