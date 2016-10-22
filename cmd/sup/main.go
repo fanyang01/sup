@@ -9,8 +9,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/fanyang01/sup"
 	"github.com/pkg/errors"
-	"github.com/pressly/sup"
 )
 
 var (
@@ -44,7 +44,7 @@ func (f *flagStringSlice) Set(value string) error {
 }
 
 func init() {
-	flag.StringVar(&supfile, "f", "./Supfile", "Custom path to Supfile")
+	flag.StringVar(&supfile, "f", "Supfile.yaml", "Custom path to Supfile")
 	flag.Var(&envVars, "e", "Set environment variables")
 	flag.Var(&envVars, "env", "Set environment variables")
 	flag.StringVar(&onlyHosts, "only", "", "Filter hosts using regexp")
